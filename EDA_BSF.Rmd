@@ -1,0 +1,294 @@
+---
+title: "Preliminary EDA for the BSF data"
+author: "Arun/Daniel"
+date: "2/21/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("tidyverse")
+library("ggplot2")
+library("ggmap")
+library("DescTools")
+```
+
+#Preliminary EDA
+
+The notebook focusses on two aspects:
+
+<b> 1. Typical purchaser profile
+    2. Vehicle profile </b>
+
+The notebook starts with reading in data. To carry out further analysis, the dates, amount etc were converted to either date type or to float type
+
+Data shared by BSF
+
+```{r}
+cvap <- read.csv("CVAP.csv")
+#cvap
+
+## caution 12 geo coordinates missing
+# cvap_lat <- read.csv("cvap longlat.csv")
+# cvap_lat <- cvap_lat[,c("Name.Customer.ID", "Latitude", "Longitude")]
+
+# cvap <- merge(cvap1, cvap_lat, by = "Name.Customer.ID")
+```
+
+
+```{r}
+# paste("Total number of unique customers", nrow(cvap1 %>% group_by(Name.Customer.ID) %>% summarise(n =n())), sep = "  ")
+
+paste("Total number of unique customers", nrow(cvap %>% group_by(Name.Customer.ID) %>% summarise(n =n())), sep = "  ")
+```
+
+
+## Data manipulation
+```{r}
+#clean the annual income
+cvap$ANNUAL.INCOME <- sub(",","", cvap$ANNUAL.INCOME)
+cvap$ANNUAL.INCOME <- sub("\\$","", cvap$ANNUAL.INCOME)
+cvap$ANNUAL.INCOME <- as.numeric(cvap$ANNUAL.INCOME)
+```
+
+```{r}
+#clean the buydown amount
+cvap$BUYDOWN..AMOUNT <- sub(",","", cvap$BUYDOWN..AMOUNT)
+cvap$BUYDOWN..AMOUNT <- sub("\\$","", cvap$BUYDOWN..AMOUNT)
+cvap$BUYDOWN..AMOUNT <- as.numeric(cvap$BUYDOWN..AMOUNT)
+
+# loan downpayment
+cvap$Loan.down.payment <- sub(",","", cvap$Loan.down.payment)
+cvap$Loan.down.payment <- sub("\\$","", cvap$Loan.down.payment)
+cvap$Loan.down.payment <- as.numeric(cvap$Loan.down.payment)
+
+#loan amount
+cvap$LOAN.AMOUNT <- sub(",","", cvap$LOAN.AMOUNT)
+cvap$LOAN.AMOUNT <- sub("\\$","", cvap$LOAN.AMOUNT)
+cvap$LOAN.AMOUNT <- as.numeric(cvap$LOAN.AMOUNT)
+
+#total vehical cost
+cvap$TOTAL.VEHICLE.COST <- sub(",","", cvap$TOTAL.VEHICLE.COST)
+cvap$TOTAL.VEHICLE.COST <- sub("\\$","", cvap$TOTAL.VEHICLE.COST)
+cvap$TOTAL.VEHICLE.COST <- as.numeric(cvap$TOTAL.VEHICLE.COST)
+```
+
+## Purchaser's profile
+
+
+
+### Buyer's economic status
+```{r}
+
+#economic status
+cvap %>%
+  ggplot(aes(x = DAC..Y.N., fill =DAC..Y.N.))+
+  geom_bar()+
+  theme(axis.text.x = element_text(angle = 60, hjust =1, vjust =1))+
+  xlab("DAC (Yes/No)")
+```
+
+### Buyer's Age profile 
+
+```{r}
+#age profile
+cvap %>% 
+  ggplot(aes(x = Age))+
+  geom_density()+ ggtitle("Age Distribution")
+
+ggplot(data=cvap, mapping=aes(sample=Age)) +
+  stat_qq(geom = 'point', distribution = 'qunif') +
+  scale_x_continuous(n.breaks = 10) +
+  labs(x='Quantile', y='Age', title='Quantile Plot, Age')
+
+```
+
+### Buyer's tax status, loan source tapped, loan term sought
+
+```{r}
+#if filled taxes
+cvap %>%
+  ggplot(aes(x = Filed.Taxes.Last.Year, fill =Filed.Taxes.Last.Year))+
+  geom_bar()+
+  theme(axis.text.x = element_text(angle = 60, hjust =1, vjust =1))+
+  xlab("Tax filed last year")
+
+#owns a home
+cvap %>%
+  ggplot(aes(x = Owns.Home, fill =Owns.Home))+
+  geom_bar()+
+  theme(axis.text.x = element_text(angle = 60, hjust =1, vjust =1))+
+  xlab("Owns Home?")
+
+# loan source tapped into
+cvap %>%
+  ggplot(aes(x = Loan.Source, fill =Loan.Source))+
+  geom_bar()+
+  theme(axis.text.x = element_text(angle = 60, hjust =1, vjust =1))+
+  xlab("Loan Source")
+
+# loan term
+cvap %>%
+  ggplot(aes(x = LOAN.TERM, fill =LOAN.TERM))+
+  geom_bar()+
+  theme(axis.text.x = element_text(angle = 60, hjust =1, vjust =1))+
+  xlab("Loan Source")
+
+
+```
+
+
+### Annual Income distribution
+
+```{r}
+# annual income distribution
+
+cvap %>% 
+  ggplot(aes(x =ANNUAL.INCOME))+
+  geom_histogram()
+
+#Desc(cvap$ANNUAL.INCOME)
+
+cvap %>% 
+  ggplot(aes(x =ANNUAL.INCOME, color = Loan.Source, fill = Loan.Source))+
+  geom_density(alpha =0.1)+theme_bw()
+
+ggplot(data=cvap, mapping=aes(sample=ANNUAL.INCOME)) +
+  stat_qq(geom = 'point', distribution = 'qunif') +
+  scale_x_continuous(n.breaks = 10) +
+  labs(x='Quantile', y='Annual Income', title='Quantile Plot, Annual income')
+```
+
+
+### Loan received distribution
+
+```{r}
+cvap %>% 
+  ggplot(aes(x =Loan.down.payment))+
+  geom_density()+theme_bw()
+
+cvap %>% 
+  ggplot(aes(x = LOAN.AMOUNT))+
+  geom_density()+theme_bw()
+
+cvap %>% 
+  ggplot(aes(x = TOTAL.VEHICLE.COST))+
+  geom_density()+theme_bw()
+
+cvap %>% 
+  ggplot(aes(x =LOAN.AMOUNT))+
+  geom_histogram()
+
+
+
+#names(cvap)
+```
+
+
+## Vehicle's profile
+
+### New or Used
+
+```{r}
+cvap %>%
+  ggplot(aes(x = Purchased.Vehicle.New.or.Used, fill =Purchased.Vehicle.New.or.Used ))+
+  geom_bar()+
+  theme(axis.text.x = element_text(angle = 60, hjust =1, vjust =1))+
+  xlab("New vs used")
+```
+
+### Tech type vehicle
+
+```{r}
+cvap %>%
+  ggplot(aes(x = Technology.Type..Fuel.Type, fill =Technology.Type..Fuel.Type))+
+  geom_bar()+
+  theme(axis.text.x = element_text(angle = 60, hjust =1, vjust =1))+
+  xlab("TYpe of vehicle")
+```
+
+### leased or not
+
+```{r}
+cvap %>%
+  ggplot(aes(x = Lease..Y.N., fill =Lease..Y.N.))+
+  geom_bar()+
+  theme(axis.text.x = element_text(angle = 60, hjust =1, vjust =1))+
+  xlab("Leased (Yes/No)")
+```
+
+### How many opt for chargers
+
+```{r}
+cvap %>%
+  ggplot(aes(x = Charging.Station.Type, fill =Charging.Station.Type))+
+  geom_bar()+
+  theme(axis.text.x = element_text(angle = 60, hjust =1, vjust =1))+
+  xlab("Charger received?")
+
+```
+
+### Make of the vehicle
+
+```{r}
+make.count <- cvap %>% 
+  group_by(MAKE) %>% 
+  summarise(count= n())
+
+make.count2 <- make.count %>% 
+  mutate(prop = round(count/sum(make.count$count), 2))
+
+make.count1 <- make.count[order(-make.count$count),]
+
+make.count1 %>% 
+  ggplot(aes(x = reorder(MAKE, count, sum),  y = count, fill = MAKE))+
+  geom_bar(stat = "identity", position = "dodge")+
+  theme(axis.text.x = element_text(angle = 60, hjust =1, vjust =1))+
+  xlab("Make")+ggtitle( "Count")
+
+make.count2 %>% 
+  ggplot(aes(x = reorder(MAKE, prop, sum),  y = prop, fill = MAKE))+
+  geom_bar(stat = "identity", position = "dodge")+
+  theme(axis.text.x = element_text(angle = 60, hjust =1, vjust =1))+
+  xlab("Make") + ggtitle("proportion")
+
+# high.prop <- make.count2[make.count2$prop > 0.01,]
+# 
+# make.count1 <- make.count[order(-make.count$count),]
+# cvap %>% 
+#   ggplot(aes(MAKE))+
+#   geom_bar(fill = "#0073C2FF")+
+#   theme(axis.text.x = element_text(angle = 60, hjust =1, vjust =1))+
+#   xlab("Make")
+```
+
+### Vehicle cost
+
+```{r}
+cvap %>% 
+  ggplot(aes(x =TOTAL.VEHICLE.COST))+
+  geom_histogram()
+```
+
+
+```{r}
+# cvap[cvap$MAKE %in% high.prop$MAKE,] %>% 
+#   ggplot(aes(MAKE))+
+#   geom_bar(fill = "#0073C2FF")+
+#   theme(axis.text.x = element_text(angle = 60, hjust =1, vjust =1))+
+#   xlab("Make")+ facet_wrap(.~Loan.Source)
+```
+
+```{r}
+# cvap %>% 
+#   group_by(MAKE, Loan.Source) %>% 
+#   summarise(count = n(), avg.laon.amount = mean(LOAN.AMOUNT, na.rm = TRUE))
+# 
+# cvap[cvap$LOAN.AMOUNT != "No Loan",]%>% 
+#   ggplot(aes(x = MAKE, y = LOAN.AMOUNT, fill = Loan.Source))+
+#   geom_bar(stat =  "identity", position = "dodge")+
+#   theme(axis.text.x = element_text(angle = 60, hjust =1, vjust =1))+
+#   xlab("Make")+ facet_wrap(.~Loan.Source)
+```
+
+
