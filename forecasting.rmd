@@ -1,0 +1,66 @@
+---
+title: "ARIMA"
+author: "Arun Sharma"
+date: "2/27/2021"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(xts)
+library(astsa)
+```
+
+```{r}
+vehicles <- read_csv("dmv_Database.csv")
+
+unique(vehicles$`Fuel Type`)
+
+grouped.df <- vehicles %>% group_by(`Data Year`, `Fuel Type`) %>%  summarise(total_vehicles = sum(`Number of Vehicles`))
+
+electric <- grouped.df[grouped.df$`Fuel Type` == "Electric",]
+```
+
+```{r}
+electric <- select(electric, "Data Year", "total_vehicles")
+evs <- select(electric,"total_vehicles")
+#ts <- xts(electric[,-1], order.by=as.Date(electric[,0], "%Y"))
+ts.electric <- as.ts(electric)
+ts.evs <- as.ts(electric$total_vehicles, start = 1998, frequency =1)
+```
+
+```{r}
+#remove trends
+#ts.electric$total_vehicles
+plot(ts.evs)
+
+diff.evs =  diff(ts.evs)
+plot(diff.evs) #differenced plot
+
+diff.log.evs =  diff(log(ts.evs))
+plot(diff(diff.log.evs)) #differenced plot
+```
+```{r}
+acf2(diff.evs)
+acf2(diff.log.evs)
+```
+
+```{r}
+# arima111 <- sarima(diff.log.evs, p = 1, d =1, q =1)
+arima110 <- sarima(diff.log.evs, p = 1, d =1, q =0)
+# ma001 <- sarima(diff.log.evs, p = 0, d =0, q =1)
+# ar100 <- sarima(diff.log.evs, p = 1, d =0, q =0)
+# ar200 <- sarima(diff.log.evs, p = 2, d =0, q =0)
+# arima210 <- sarima(diff.log.evs, p = 2, d =1, q =0)
+```
+
+```{r}
+# arima210
+# arima110
+
+##arima 110 performs better
+```
+
+```{r}
+sarima.for(ts.evs, n.ahead = 15, 1,1,0)
+```
+
