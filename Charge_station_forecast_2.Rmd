@@ -1,0 +1,259 @@
+---
+title: "CA Gas Forecase"
+author: "ClareCallahan"
+date: "4/11/2021"
+output: html_document
+---
+
+Data was pulled on 4/11/2021 from the EIA https://www.eia.gov/dnav/pet/PET_PRI_GND_DCUS_SCA_M.htm
+Values are in $/Gallon of averaged Regular Gas formulations in CA from Jan 1995-Mar 2021 
+
+```{r}
+
+#install.packages('forecast', dependencies = TRUE)
+
+```
+
+
+
+```{r}
+library(ggplot2)
+library(readr)
+library(tidyverse)
+library(lubridate)
+library(forecast)
+library(tseries)
+library(dplyr)
+library(mgcv)
+library(astsa)
+
+```
+
+```{r}
+temp <- tempfile()
+download.file("http://download.geonames.org/export/zip/US.zip",temp)
+con <- unz(temp, "US.txt")
+US <- read.delim(con, header=FALSE)
+unlink(temp)
+colnames(US)[c(3,5,6)] <- c("city","state","county")
+CA<-filter(US, state== "CA")
+US$city <- tolower(US$city)
+
+County<-(US)[c(3,6)]
+
+
+#join on city from charging station 
+
+station <- read_csv("alt_fuel_stations.csv")
+station$city <- tolower(station$city)
+data<-left_join(station, County, by = "city")
+
+
+
+```
+
+
+
+
+
+
+```{r}
+
+data$Open_Date <-mdy(data$Open_Date)
+
+#https://blogs.oracle.com/datascience/introduction-to-forecasting-with-arima-in-r
+summary(data)
+class(data$Open_Date)
+data$Year <- year(data$Open_Date)
+
+```
+
+
+
+```{r}
+
+
+data%>%
+ggplot(aes(x=Open_Date, y=data$`EV Level2 EVSE Num`))+
+  geom_line() + scale_x_date('month')+ 
+    ylab("Count of Charging Stations Opened in Year X") +
+    xlab("Date")
+
+
+```
+
+
+##creating counts for level 2 and DC by county by open data, cummulativly add prior years stations 
+
+```{r}
+data<-as.data.frame(data)
+
+stationCounty <- data%>%
+  group_by(county)%>%
+  aggregate(data["Year"], by= list(year = Year), FUN= sum)
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+##Unnecessary step
+```{r}
+#clean and smooth 
+
+
+gas_ts = ts(gas_price[, c('GasolinePrices')])
+
+gas_price$clean_Gas = tsclean(gas_ts)
+
+
+gas_price%>%
+ggplot(aes(x=Date, y=clean_Gas))+
+  geom_line() + scale_x_date('month')+ 
+    ylab("GasPrice_smoothed") +
+    xlab("Date")
+
+  
+
+```
+
+
+
+#moving average 
+
+
+gas_price$gas_ma = ma(gas_price$clean_Gas, order=7) # using the clean count with no outliers
+
+gas_price$gas_ma30 = ma(gas_price$clean_Gas, order=30)
+
+
+
+ggplot() + 
+  geom_line(data = gas_price, aes(x = Date, y = clean_Gas, colour = " Price")) +
+  geom_line(data = gas_price, aes(x = Date, y = gas_ma,   colour = "Weekly Moving Average"))  +
+  geom_line(data = gas_price, aes(x = Date, y = gas_ma30, colour = "Monthly Moving Average"))  +
+  ylab('Spot Price') 
+
+
+
+
+```{r}
+
+#decomposition 
+
+
+
+count_ma = ts(na.omit(gas_price$GasolinePrices), frequency=12) 
+decomp = stl(count_ma, s.window="periodic")
+deseasonal_sp <- seasadj(decomp, allow.multiplicative.trend=TRUE)
+plot(decomp)
+
+plot(deseasonal_sp)
+```
+
+```{r}
+
+count_ma %>%
+  stl(s.window='periodic')%>%
+  seasadj() -> eeadj
+autoplot(eeadj)
+
+
+```
+
+##P-value >.05 Data is non-stationary
+```{r}
+
+adf.test(count_ma, alternative = "stationary")
+
+
+#p-value >.05 indicates weak alternative hypothesis, i.e. do not reject the null that the data is non-stationary
+
+```
+```{r}
+Acf(count_ma, main='')
+
+Pacf(count_ma, main='')
+
+#https://towardsdatascience.com/time-series-forecasting-arima-models-7f221e9eee06
+
+```
+##Data is now stationary 
+```{r}
+
+
+count_d1 = diff(deseasonal_sp, differences = 1)
+plot(count_d1)
+adf.test(count_d1, alternative = "stationary")
+
+
+```
+
+
+
+```{r}
+
+Acf(count_d1, main='ACF for Differenced Series')
+Pacf(count_d1, main='PACF for Differenced Series')
+
+```
+
+
+```{r}
+
+fit<- auto.arima(deseasonal_sp, seasonal = FALSE)
+tsdisplay(residuals(fit), lag.max = 2, main = 'Model Residuals')
+
+checkresiduals(fit)
+```
+
+
+```{r}
+
+fcast <- forecast(fit)
+plot(fcast)
+
+
+```
+
+
+
+
+
+
+
+```{r}
+
+plot(predict(deseasonal_sp))
+
+
+prediction2 <- predict(fit[["x"]])
+
+plot(prediction2)
+
+```
+
+```{r}
+
+#132 months. Note predictions start April 2021 and continue to March 2035 (adding dates via excel)... after a certain point the values flatline 
+futureVal <-predict(fit, n.ahead = 168)
+
+#futurVal <- forecast(fit, level=c(95))
+
+plot(futurVal)
+
+gas_df<- as.data.frame(futureVal$pred)
+
+#add in data back to 1995
+write.csv(gas_df, "CA_GasPreds_2035.csv")
+```
