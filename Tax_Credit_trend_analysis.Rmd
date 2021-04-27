@@ -1,0 +1,203 @@
+---
+title: "Policy_Scen_EV"
+author: "ClareCallahan"
+date: "4/26/2021"
+output: html_document
+---
+
+Backgroun: 
+Tesla reached the milestone in July 2018 and General Motors reached it in December 2018. No other automaker is likely to reach the 200,000 unit sales threshold until at least 2022-2023.
+
+https://evadoption.com/ev-sales/federal-ev-tax-credit-phase-out-tracker-by-automaker/#:~:text=Updated%20through%20June%202020&text=Tesla%20reached%20the%20milestone%20in,until%20at%20least%202022%2D2023.
+
+```{r setup, include=FALSE}
+#install.packages('did')
+library(did)
+
+library(tidyverse)
+```
+
+```{r}
+dmv <-read.csv("dmv_data.csv", header = TRUE)
+
+head(dmv)
+
+```
+
+```{r}
+
+
+#truncate to 2015 to reduce variation 
+tesla <- subset(dmv, MAKE =="TESLA")
+
+gm<- subset(dmv, MAKE=="CHEVROLET")
+
+nissan_control <-subset(dmv, MAKE=="NISSAN")
+toyota_control <-subset(dmv, MAKE=="Toyota")
+
+drops <- c("TESLA", "CHEVROLET") 
+
+other <- subset(dmv, !(MAKE %in% drops))
+
+test <- dmv%>%
+  group_by(Data.Year, MAKE)%>%
+  summarise(Total = sum(Number.of.Vehicles, na.rm = TRUE),
+            )
+
+toyota_control <- toyota_control%>%
+  group_by(Data.Year)%>%
+  summarise(Total = sum(Number.of.Vehicles, na.rm = TRUE),
+            )
+
+nissan_control <- nissan_control%>%
+  group_by(Data.Year)%>%
+  summarise(Total = sum(Number.of.Vehicles, na.rm = TRUE),
+            )
+
+other <- other%>%
+  group_by(Data.Year)%>%
+  summarise(Avg = mean(Number.of.Vehicles, na.rm = TRUE), 
+            Total = sum(Number.of.Vehicles)
+            )
+
+
+## need to use sum for treatment and avg for control
+gm <- gm%>%
+  group_by(Data.Year)%>%
+  summarise(Total = sum(Number.of.Vehicles))
+
+
+tesla <- tesla%>%
+  group_by(Data.Year)%>%
+  summarise(Total = sum(Number.of.Vehicles))
+
+```
+##Paralel trends 
+
+conditional_did_pretest
+Pre-Test of Conditional Parallel Trends Assumption
+
+```{r}
+
+ggplot(other, aes(x=Data.Year,y=Avg ))+
+  stat_summary(fun.data = mean_cl_normal)+
+  geom_smooth(method='lm', formula=y~x)+
+  geom_point()
+
+
+ggplot(other, aes(x=Data.Year,y=Total ))+
+  stat_summary(fun.data = mean_cl_normal)+
+  geom_smooth(method='lm', formula=y~x)+
+  geom_point()
+```
+
+```{r}
+
+ggplot(gm, aes(x=Data.Year,y=Total))+
+  stat_summary(fun.data = mean_cl_normal)+
+  geom_smooth(method='lm', formula=y~x)+
+  geom_point()
+
+ggplot(tesla, aes(x=Data.Year,y=Total ))+
+  stat_summary(fun.data = mean_cl_normal)+
+  geom_smooth(method='lm', formula=y~x)+
+  geom_point()
+
+
+
+ggplot(nissan_control, aes(x=Data.Year,y=Total ))+
+  stat_summary(fun.data = mean_cl_normal)+
+  geom_smooth(method='lm', formula=y~x)+
+  geom_point()
+
+
+ggplot(toyota_control, aes(x=Data.Year,y=Total ))+
+  stat_summary(fun.data = mean_cl_normal)+
+  geom_smooth(method='lm', formula=y~x)+
+  geom_point()
+
+```
+
+
+##Using Other Total
+
+```{r}
+
+
+other2= other[,-2]
+
+other2<-subset(other2, Data.Year>= 2010)
+
+other2$id <- "other"
+gm$id <- "gm"
+other2<-other2%>% rename(y = Total)
+gm2<-gm%>% rename(y = Total)
+df2 <- rbind(other2, gm2)
+
+
+df2$time <- ifelse(df2$Data.Year >=2019, 1,0)
+df2$treated <- ifelse(df2$id =="gm", 1,0)
+df2$did= df2$time* df2$treated
+
+
+
+didreg =lm(y~ treated +time+did, data=df2)
+
+summary(didreg)
+
+```
+
+```{r}
+
+other3= other[,-3]
+
+other3<-subset(other3, Data.Year>= 2010)
+
+other3$id <- "other"
+
+other3<-other3%>% rename(y = Avg)
+
+df2 <- rbind(other3, gm2)
+
+
+df2$time <- ifelse(df2$Data.Year >=2019, 1,0)
+df2$treated <- ifelse(df2$id =="gm", 1,0)
+df2$did= df2$time* df2$treated
+
+head(df2)
+
+didreg =lm(y~ treated +time+did, data=df2)
+
+summary(didreg)
+
+
+
+```
+
+
+```{r}
+
+
+toyota <-toyota_control
+toyota$id <- "toyota"
+gm$id <- "gm"
+toyota<-toyota%>% rename(y = Total)
+gm2<-gm%>% rename(y = Total)
+df3 <- rbind(toyota, gm2)
+
+
+df3$time <- ifelse(df3$Data.Year >=2019, 1,0)
+df3$treated <- ifelse(df3$id =="gm", 1,0)
+df3$did= df3$time* df3$treated
+
+
+
+didreg3 =lm(y~ treated +time+did, data=df3)
+
+summary(didreg3)
+
+
+
+```
+
+
