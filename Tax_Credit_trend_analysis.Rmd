@@ -12,28 +12,71 @@ https://evadoption.com/ev-sales/federal-ev-tax-credit-phase-out-tracker-by-autom
 
 ```{r setup, include=FALSE}
 #install.packages('did')
+#install.packages('Hmisc')
+
 library(did)
 
 library(tidyverse)
+
+#library(Hmisc)
 ```
 
 ```{r}
 dmv <-read.csv("dmv_data.csv", header = TRUE)
 
-head(dmv)
+dmv$Data.Year<- as.numeric(dmv$Data.Year)
+ dmv<- subset(dmv, Fuel.Type =="Electric"| Fuel.Type=="PHEV") 
+ 
+ dmv<- subset(dmv, Data.Year>=2015)
+ head(dmv)
+
+```
+Comparision selection
+```{r}
+
+drops <- c("TESLA", "CHEVROLET") 
+
+other2 <- subset(dmv, !(MAKE %in% drops))
+
+ggplot(dmv, aes(x=Data.Year,y=Number.of.Vehicles, fill=MAKE))+
+  stat_summary(fun.data = mean_cl_normal)+
+  geom_smooth(method='lm', formula=y~x)
+
+lm_dmv<-lm(Number.of.Vehicles ~ Data.Year + MAKE, dmv)
+summary(lm_dmv)
+
+
+
+ggplot(subset(dmv, MAKE=="BMW"), aes(x=Data.Year,y=Number.of.Vehicles, fill=MAKE))+
+  stat_summary(fun.data = mean_cl_normal)+
+  geom_smooth(method='lm', formula=y~x)
+
+ggplot(subset(dmv, MAKE=="Audi"), aes(x=Data.Year,y=Number.of.Vehicles, fill=MAKE))+
+  stat_summary(fun.data = mean_cl_normal)+
+  geom_smooth(method='lm', formula=y~x)
+
+
+ggplot(subset(dmv, MAKE=="CHEVROLET"), aes(x=Data.Year,y=Number.of.Vehicles, fill=MAKE))+
+  stat_summary(fun.data = mean_cl_normal)+
+  geom_smooth(method='lm', formula=y~x)+
+  geom_point()
+
+
+
 
 ```
 
 ```{r}
 
-
-#truncate to 2015 to reduce variation 
 tesla <- subset(dmv, MAKE =="TESLA")
 
 gm<- subset(dmv, MAKE=="CHEVROLET")
 
 nissan_control <-subset(dmv, MAKE=="NISSAN")
 toyota_control <-subset(dmv, MAKE=="Toyota")
+                        
+                        
+                        #MAKE=="NISSAN"|MAKE=="FORD" | MAKE=="Hyundia"| MAKE=="Honda"| MAKE=="Kia"| MAKE=="NISSAN"| MAKE=="Volkswagen" )
 
 drops <- c("TESLA", "CHEVROLET") 
 
@@ -79,6 +122,16 @@ Pre-Test of Conditional Parallel Trends Assumption
 
 ```{r}
 
+
+ggplot(subset(dmv, MAKE== 'Audi'), aes(x=Data.Year,y=Number.of.Vehicles, fill=MAKE))+
+  stat_summary(fun.data = mean_cl_normal)+
+  geom_smooth(method='lm', formula=y~x)
+
+ggplot(other2, aes(x=Data.Year,y=Number.of.Vehicles ))+
+  stat_summary(fun.data = mean_cl_normal)+
+  geom_smooth(method='lm', formula=y~x)+
+  geom_point()
+
 ggplot(other, aes(x=Data.Year,y=Avg ))+
   stat_summary(fun.data = mean_cl_normal)+
   geom_smooth(method='lm', formula=y~x)+
@@ -105,10 +158,10 @@ ggplot(tesla, aes(x=Data.Year,y=Total ))+
 
 
 
-ggplot(nissan_control, aes(x=Data.Year,y=Total ))+
-  stat_summary(fun.data = mean_cl_normal)+
-  geom_smooth(method='lm', formula=y~x)+
-  geom_point()
+#ggplot(nissan_control, aes(x=Data.Year,y=Total ))+
+ # stat_summary(fun.data = mean_cl_normal)+
+  #geom_smooth(method='lm', formula=y~x)+
+  #geom_point()
 
 
 ggplot(toyota_control, aes(x=Data.Year,y=Total ))+
@@ -196,7 +249,7 @@ didreg3 =lm(y~ treated +time+did, data=df3)
 
 summary(didreg3)
 
-
+9119/15136
 
 ```
 
