@@ -230,6 +230,8 @@ ts <- seq.POSIXt(as.POSIXct("2001-09-01 0:00",'%m/%d/%y %H:%M'), as.POSIXct("200
 year(seq(c(ISOdate(2010,1,1)), by = "year", length.out = 11))
 ```
 
+
+##Chargers 
 ```{r}
 chargers1 <- read.csv("county_datapoints.csv")
 chargers1
@@ -253,29 +255,33 @@ if (list_counties_proj[i] %in% na_chargers$county ){
 }
 ```
 
-
+```{r}
+#install.packages('astsa')
+library(astsa)
+```
 
 ```{r}
+
 
 for (i in 1:length(list_counties_proj)){
   data_for <- chargers1[chargers1$county == list_counties_proj[i],]
   # data_for <- chargers1[chargers1$county == "Alameda",]
   
   #adjust for na chargers
-  # if (list_counties_proj[i] %in% na_chargers$county ){
-  # l <- data_for[(length
-  #                (data_for)-2):length
-  #               (data_for)]
-  # list_counties_proj[i]
-  # missing_charger = na_chargers[na_chargers$county ==list_counties_proj[i], ]$total_chargers
-  # value1 <- missing_charger*.20
-  # value2 <- missing_charger*.30
-  # value3 <- missing_charger*.50
-  # l <- l +c(value1,value2,value3)
-  # data_for[(length
-  #           (data_for)-2):length
-  #          (data_for)] <- l 
-  # }
+   if (list_counties_proj[i] %in% na_chargers$county ){
+   l <- data_for[(length
+                  (data_for)-2):length
+                 (data_for)]
+   list_counties_proj[i]
+   missing_charger = na_chargers[na_chargers$county ==list_counties_proj[i], ]$total_chargers
+   value1 <- missing_charger*.30
+   value2 <- missing_charger*.50
+   value3 <- missing_charger*.20
+   l <- l +c(value1,value2,value3)
+   data_for[(length
+             (data_for)-2):length
+            (data_for)] <- l 
+   }
   #forecast
   
   start_year <- county_data[county_data$county == list_counties_proj[i],]$lowest_year

@@ -47,10 +47,28 @@ long_pop$county <- gsub("[^a-zA-Z]", "", long_pop$county)
 #Income
 income <- read.csv("forecastedIncome.csv")
 income <- select(income, -X)
-county_names <- names(income)
+
+county_names<- names(income)
+income$year<- 2000:2035
+income <-subset(income, year >=2010)
+col_idx <- grep("^year$", names(income))
+income <- income[, c(col_idx, (1:ncol(income))[-col_idx])]
+
+income.long <- pivot_longer(income, cols = 2:59, names_to = "county" , values_to= "avg_income")
+
+
+income.long$county <- tolower(income.long$county)
+income.long$county <- gsub("[^a-zA-Z]", "", income.long$county)
+
+
+
 county_names <-county_names[-length(county_names)]
 county_names <- tolower(county_names)
 county_names <- gsub("[^a-zA-Z]", "", county_names)
+
+
+
+
 ```
 
 ## Charging Stations
@@ -66,7 +84,7 @@ chargers1$county <- gsub("[^a-zA-Z]", "", chargers1$county)
 
 #charger_forecast
 charger_forecast <- read.csv("charger_forecast.csv")
-names(charger_forecast)[2] <- "forecast_charger"
+names(charger_forecast)[2] <- "chargers"
 
 #chargers forecast
 char_for <- read.csv("charger_forecast.csv")
@@ -74,11 +92,13 @@ charger_X <-  char_for[char_for$year_list>2020,]
 names(charger_X)[2] <- "forecast_charger"
 charger_X$county <- tolower(charger_X$county)
 charger_X$county <- gsub("[^a-zA-Z]", "", charger_X$county)
-
+charger_forecast<-rename(charger_forecast, c('year'= 'year_list'))
+charger_forecast$county <- tolower(charger_forecast$county)
+charger_forecast$county <- gsub("[^a-zA-Z]", "", charger_forecast$county)
 ```
 
 
-## Fuel price -Gas
+## Fuel price-Gas
 ```{r}
 #Fuel Price
 fuel_price <- read.csv("CA_GasPreds_1995_2035.csv")
@@ -94,10 +114,10 @@ names(gas_price)[2] <- "gas_price"
 ```
 
 
-## Vehicle price
+## Vehicle price ##updated Vehicle price with new CSV
 ```{r}
 #Vehicle price
-vehicle_price <- read.csv("cec_price_range.csv")
+vehicle_price <- read.csv("Vehicle_prices_final.csv")
 names(vehicle_price)[1] <- "year"
 ```
 
@@ -114,6 +134,14 @@ names(mpk)[1] <- "year"
 ```{r}
 Y <- read.csv("numEV_CountyandYear.csv")
 Y <- select(Y, -X)
+
+#Y<-Y%>% 
+  #group_by(county)%>%
+  #mutate(lag.value = lag(num_ev))
+Y<-Y%>% 
+  group_by(county)%>%
+  mutate(lag.value = cumsum(num_ev))
+
 Y$county <- tolower(Y$county)
 Y$county <- gsub("[^a-zA-Z]", "", Y$county)
 yearly_sales <- Y %>% 
@@ -121,24 +149,41 @@ yearly_sales <- Y %>%
   summarise(total_sales = sum(num_ev, na.rm = TRUE))
 ```
 
+### Kw prices (All of CA)
+```{r}
+kw_prices<-read.csv("yearly_kwh_prices.csv")
+kw_prices <-subset(kw_prices, year >=2010)
+```
+
+
 ## Merging data for Xs and Y
 
 ```{r}
 final <- merge(Y, gas_price, by = "year")
 final <- merge(final, vehicle_price, by = "year")
 final <- merge(final, mpk, by = "year")
-
+final <-merge(final, kw_prices, by= "year")
 final <- merge(final, long_pop, by = c("county", "year")) 
+final<- right_join(final, income.long, by= c("county", "year"))
 
 #lose rows over here
 final <- merge(final, chargers1[,c("county","year","csum")], by = c("county", "year"))
-final$avg_income <- (final$low+final$medium+final$high)/3
-model_data<-final
+#final$avg_income <- (final$low+final$medium+final$high)/3
+final<-rename(final, c("chargers" ='csum'))
+#model_data<-final %>% group_by(county)%>% 
+ # summarise(Avg_County_come= mean(avg_income))
+#model_data<-model_data %>% group_by(year)%>% 
+#  summarise(Total_year_EV= sum(num_ev))
+
+#head(model_data)
 #model_data <- select(final, -c("year", "county", "low", "medium", "high"))
 
 #preping data for model
 
 #scale
+```
+
+
 Xs <- names(model_data)[2:6]
 for (i in Xs ){
   print(model_data[,i])
@@ -154,36 +199,179 @@ scaled_model_data$population<- c(scale(model_data$population, center = TRUE, sca
 scaled_model_data$csum <- c(scale(model_data$csum, center = TRUE, scale = TRUE))
 
 scaled_model_data$avg_income <- c(scale(model_data$avg_income, center = TRUE, scale = TRUE))
-```
+
 
 ## Run the model
 
 ```{r}
+final<-na.omit(final)
+
 lm0 <- lm(num_ev~.-c(year), data=final)
 summary(lm0)
 
-lm1 <- lm(num_ev~.-c(year), data=model_data)
+plot(lm0)
+
+
+lm1 <- lm(num_ev~year, data=final)
 summary(lm1)
 
-lm2 <- lm(num_ev ~ . -c(year), data=scaled_model_data)
+plot(lm1)
+ggplot(final, aes(y=num_ev, x=year+chargers+gas_price+high+low+mid+m_p_k+dollar.per.kw+population+avg_income))+
+  stat_summary(fun.data = mean_cl_normal)+
+  geom_smooth(method='lm', formula=y~x)
+
+
+lm2 <- lm(num_ev ~poly(num_ev, x=year+chargers+gas_price+high+low+mid+m_p_k+dollar.per.kw+population+avg_income), data= final)
 summary(lm2)
+
+plot(fitted((lm2), residuals(lm2)))
+
+
+
+lm3 <- lm(num_ev ~., data= final)
+summary(lm3)
+
+```
+
 
 y_test<- as.data.frame(lm2$fitted.values)
 x<- as.data.frame(list(2010:2035))
 test<-cbind(x, y_test)
 
-ggplot(test, aes(x=Data.Year,y=Number.of.Vehicles, fill=MAKE))+
-  stat_summary(fun.data = mean_cl_normal)+
-  geom_smooth(method='lm', formula=y~x)
+
+```{r}
+
+
+new_Y<-Y[,-4]
+
+new_Y <- pivot_wider(new_Y, names_from =year, values_from=num_ev)
+new_Y$'2021'<-0
+#new_Y$'2022'<-0
+#new_Y$'2023'<-0
+#new_Y$'2024'<-0
+#new_Y$'2025'<-0
+#new_Y$'2026'<-0
+#new_Y$'2027'<-0
+#new_Y$'2028'<-0
+#new_Y$'2029'<-0
+#new_Y$'2030'<-0
+#new_Y$'2031'<-0
+#new_Y$'2032'<-0
+#new_Y$'2033'<-0
+#new_Y$'2034'<-0
+#new_Y$'2035'<-0
+#new_Y <- pivot_longer(new_Y, cols = 2:27, names_to = "year", values_to= "num_ev")
+new_Y <- pivot_longer(new_Y, cols = 2:13, names_to = "year", values_to= "num_ev")
+new_Y$year<-as.numeric(new_Y$year)
+
+future_x <- merge(new_Y, gas_price, by = "year")
+future_x <- merge(future_x, vehicle_price, by = "year")
+future_x <- merge(future_x, mpk, by = "year")
+future_x <-merge(future_x, kw_prices, by= "year")
+future_x <- merge(future_x, long_pop, by = c("county", "year")) 
+future_x<- right_join(future_x, income.long, by= c("county", "year"))
+#lose rows over here
+
+
+future_x <- right_join(future_x, charger_forecast[,c("county","year","chargers")], by = c("county", "year"))
+#future_x <- left_join(future_x, Y[, c("lag.value", "county", "year")], by=c("county","year"))
+future_x<-future_x%>% 
+  group_by(county)%>%
+  mutate(lag.value = cumsum(num_ev))
+#future_x<-subset(future_x, year > 2020)  
+
+#future_x$num_ev<-0
+
+future_x<- subset(future_x, year <=2021)
+
+
+future_x<-na.omit(future_x)
+```
+
+
+## predict for future
+
+```{r}
+
+prediction <- predict(lm3, future_x, se.fit = TRUE)
+
+pred.w.plim <- predict(lm3, future_x, interval = "prediction")
+
+pred.w.clim <- predict(lm3,future_x, interval = "confidence")
+
+#matplot(future_x$m_p_k, cbind(pred.w.clim, pred.w.plim[,-1]),
+ #       lty = c(1,2,2,3,3), type = "l", ylab = "predicted y")
+
+# length(prediction$fit)
+
+preds_cc <- future_x
+
+preds_cc$preds<- prediction$fit
+
+Y_2021<-subset(preds_cc, year== '2021')  
+#Y_2021<-Y_2021$preds & Y_2021$county
+
+
+
+ggplot(preds_cc, aes(x=year,y=preds))+ geom_point()
+
+final_preds<- preds_cc%>% group_by(year) %>% summarise(CA_total_ev = sum(preds), Original=sum(num_ev))
+
+
 
 ```
 
+
+preds <- as.data.frame(matrix(0,nrow=15, ncol =2))
+
+names(preds) <- c("Year", "projections")
+
+# preds[1,1]
+
+
+
+j=1
+for (i in 2021:2035){
+  preds[j,1] <- i
+  j=j+1
+}
+
+preds$`projections` <- prediction$fit
+
+
+##650 down from 800 
+```
+
+# use caret
+```{r}
+library(caret)
+preproc <- preProcess(model_data[,c(2:6)], method = c("center", "scale"))
+scaled.new <- predict(preproc, newdata = X_pred)
+
+model <- train(num_ev ~ .,
+               data = model_data,
+               method = "lm",
+               preProcess = c('scale', 'center'))
+model$modelInfo
+predictions <- predict(model, X_pred)
+```
+
+```{r}
+prediction <- predict(lm2, scaled.new)
+
+summary(prediction)
+```
+
+```{r}
+
+write.csv(preds, "Prediction_california.csv")
+```
 
 ## predictions with model
 
 ### get the X's for future
 
-```{r}
+
 #gas X
 gas_price_X <- gas_price[gas_price$year>2020,]
 
@@ -212,62 +400,6 @@ X_pred <- cbind(gas_price_X[,c("gas_price")],
 
 #combining prices for all category
 
-X_pred$avg_income <- (X_pred$low + X_pred$medium + X_pred$high)/3
+#X_pred$avg_vehicle_price <- (X_pred$low + X_pred$medium + X_pred$high)/3
 
 X_pred <- select(X_pred, -c( "low", "medium", "high"))
-```
-
-## predict for future
-
-```{r}
-
-prediction <- predict(lm1, X_pred, se.fit = TRUE)
-
-pred.w.plim <- predict(lm1, X_pred, interval = "prediction")
-
-pred.w.clim <- predict(lm1, X_pred, interval = "confidence")
-
-matplot(X_pred$m_p_k, cbind(pred.w.clim, pred.w.plim[,-1]),
-        lty = c(1,2,2,3,3), type = "l", ylab = "predicted y")
-
-# length(prediction$fit)
-
-preds <- as.data.frame(matrix(0,nrow=15, ncol =2))
-
-names(preds) <- c("Year", "projections")
-
-# preds[1,1]
-
-j=1
-for (i in 2021:2035){
-  preds[j,1] <- i
-  j=j+1
-}
-
-preds$`projections` <- prediction$fit
-```
-
-# use caret
-```{r}
-library(caret)
-preproc <- preProcess(model_data[,c(2:6)], method = c("center", "scale"))
-scaled.new <- predict(preproc, newdata = X_pred)
-
-model <- train(num_ev ~ .,
-               data = model_data,
-               method = "lm",
-               preProcess = c('scale', 'center'))
-model$modelInfo
-predictions <- predict(model, X_pred)
-```
-
-```{r}
-prediction <- predict(lm2, scaled.new)
-
-summary(prediction)
-```
-
-```{r}
-
-write.csv(preds, "Prediction_california.csv")
-```

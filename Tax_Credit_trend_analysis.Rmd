@@ -5,8 +5,11 @@ date: "4/26/2021"
 output: html_document
 ---
 
-Backgroun: 
+Background: 
 Tesla reached the milestone in July 2018 and General Motors reached it in December 2018. No other automaker is likely to reach the 200,000 unit sales threshold until at least 2022-2023.
+
+2022-2030
+
 
 https://evadoption.com/ev-sales/federal-ev-tax-credit-phase-out-tracker-by-automaker/#:~:text=Updated%20through%20June%202020&text=Tesla%20reached%20the%20milestone%20in,until%20at%20least%202022%2D2023.
 
