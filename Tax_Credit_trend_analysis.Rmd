@@ -69,6 +69,48 @@ ggplot(subset(dmv, MAKE=="CHEVROLET"), aes(x=Data.Year,y=Number.of.Vehicles, fil
 
 ```
 
+## trial- Arun
+```{r}
+vehicle <- dmv %>% 
+  group_by(Data.Year,MAKE) %>% summarise(total_veh = sum(Number.of.Vehicles))
+
+#have both chev and tesla
+vehicle1 <- vehicle
+vehicle1$is.tesl_or_chev <- "Others"
+vehicle1[vehicle1$MAKE %in% c("TESLA", "CHEVROLET"),]$is.tesl_or_chev <- "Tesla Or Chev"
+# ggplot(data = vehicle, aes(x = Data.Year, y = total_veh))+
+#   geom_line()+
+#   facet_wrap(.~MAKE)
+vehicle2 <- vehicle1 %>% 
+  group_by(Data.Year, is.tesl_or_chev) %>% 
+  summarise(total_veh = sum(total_veh))
+ggplot(data = vehicle2, aes(x = Data.Year, y = total_veh, color = is.tesl_or_chev ))+
+  geom_line() + ggtitle("Trends for both categories of vehicles", subtitle = "Both chev and tesla included")
+
+#remove tesla
+vehicle1 <- vehicle
+vehicle1 <- vehicle1[!(vehicle1$MAKE %in% "TESLA"),]
+vehicle1$is.chev <- "Others"
+vehicle1[vehicle1$MAKE %in% c("CHEVROLET"),]$is.chev <- "Chev"
+
+vehicle2 <- vehicle1 %>% 
+  group_by(Data.Year, is.chev) %>% 
+  summarise(total_veh = sum(total_veh))
+ggplot(data = vehicle2, aes(x = Data.Year, y = total_veh, color = is.chev ))+
+  geom_line() + ggtitle("Trends for both categories of vehicles", subtitle = "Only Chevrolet")
+
+#assign post treatment world
+vehicle2$after.treat <- 0
+vehicle2[vehicle2$Data.Year > 2018,]$after.treat <- 1
+
+vehicle2$is.treat <- 0
+vehicle2[vehicle2$is.chev == "Chev",]$is.treat = 1
+
+lm1 <- lm(total_veh~is.treat*after.treat, data = vehicle2)
+summary(lm1)
+
+```
+
 ```{r}
 
 tesla <- subset(dmv, MAKE =="TESLA")
