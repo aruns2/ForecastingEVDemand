@@ -46,7 +46,8 @@ long_pop$county <- gsub("[^a-zA-Z]", "", long_pop$county)
 ```{r}
 #Income
 income <- read.csv("forecastedIncome.csv")
-income <- select(income, -X)
+
+income <- income[ ,2:60]
 
 county_names<- names(income)
 income$year<- 2000:2035
@@ -59,7 +60,6 @@ income.long <- pivot_longer(income, cols = 2:59, names_to = "county" , values_to
 
 income.long$county <- tolower(income.long$county)
 income.long$county <- gsub("[^a-zA-Z]", "", income.long$county)
-
 
 
 county_names <-county_names[-length(county_names)]
@@ -95,6 +95,12 @@ charger_X$county <- gsub("[^a-zA-Z]", "", charger_X$county)
 charger_forecast<-rename(charger_forecast, c('year'= 'year_list'))
 charger_forecast$county <- tolower(charger_forecast$county)
 charger_forecast$county <- gsub("[^a-zA-Z]", "", charger_forecast$county)
+
+
+#combo chargers 
+char_all<- read.csv("charger_all.csv")
+
+
 ```
 
 
@@ -126,14 +132,14 @@ names(vehicle_price)[1] <- "year"
 ```{r}
 #Miles per kwh
 mpk <- read.csv("forecastedMPKwh.csv")
-mpk <- select(mpk, -X)
+mpk <- mpk[, 2:3]
 names(mpk)[1] <- "year"
 ```
 ## Y- Number of vehicles sold
 
 ```{r}
 Y <- read.csv("numEV_CountyandYear.csv")
-Y <- select(Y, -X)
+Y <- Y[, 2:4]
 
 #Y<-Y%>% 
   #group_by(county)%>%
@@ -154,6 +160,9 @@ yearly_sales <- Y %>%
 kw_prices<-read.csv("yearly_kwh_prices.csv")
 kw_prices <-subset(kw_prices, year >=2010)
 ```
+
+
+
 
 
 ## Merging data for Xs and Y
@@ -238,14 +247,33 @@ y_test<- as.data.frame(lm2$fitted.values)
 x<- as.data.frame(list(2010:2035))
 test<-cbind(x, y_test)
 
+```{r}
 
+
+char <- na.omit(chargers1)
+char<-char[, 2:5]
+char$chargers<-char$csum
+
+
+charger_forecast<- charger_forecast[,-which(names(charger_forecast) %in% c("X"))]
+char<- char[,-which(names(char) %in% c("X", "total_chargers", "csum"))]
+char<-rbind(char, charger_forecast)
+char$county[char$county == "cityandcountyofsanfrancisco"] <- "sanfrancisco"
+
+#char<-char[-grep("nevada", char$county),]
+
+
+```
+
+
+
+##Please note this code is not in a forloop and currently needs to be manually run
 ```{r}
 
 
 new_Y<-Y[,-4]
-
-new_Y <- pivot_wider(new_Y, names_from =year, values_from=num_ev)
-new_Y$'2021'<-0
+#new_Y <- pivot_wider(new_Y, names_from =year, values_from=num_ev)
+#new_Y$'2021'<-0
 #new_Y$'2022'<-0
 #new_Y$'2023'<-0
 #new_Y$'2024'<-0
@@ -260,32 +288,120 @@ new_Y$'2021'<-0
 #new_Y$'2033'<-0
 #new_Y$'2034'<-0
 #new_Y$'2035'<-0
-#new_Y <- pivot_longer(new_Y, cols = 2:27, names_to = "year", values_to= "num_ev")
-new_Y <- pivot_longer(new_Y, cols = 2:13, names_to = "year", values_to= "num_ev")
-new_Y$year<-as.numeric(new_Y$year)
 
+#new_Y <- pivot_longer(new_Y, cols = 2:13, names_to = "year", values_to= "num_ev")
+new_Y$year<-as.numeric(new_Y$year)
 future_x <- merge(new_Y, gas_price, by = "year")
 future_x <- merge(future_x, vehicle_price, by = "year")
 future_x <- merge(future_x, mpk, by = "year")
 future_x <-merge(future_x, kw_prices, by= "year")
 future_x <- merge(future_x, long_pop, by = c("county", "year")) 
-future_x<- right_join(future_x, income.long, by= c("county", "year"))
-#lose rows over here
+future_x<- left_join(future_x, income.long, by= c("county", "year"))
+future_x <-left_join(future_x, char[,c("county","year","chargers")], by = c("county", "year"))
 
+Y2021<-Y_2021
+Y2021$num_ev<- Y_2021$preds
+Y2021<- as.data.frame(Y2021[ , -c(13:14)])
+future_x<-rbind(future_x, Y2021)
 
-future_x <- right_join(future_x, charger_forecast[,c("county","year","chargers")], by = c("county", "year"))
-#future_x <- left_join(future_x, Y[, c("lag.value", "county", "year")], by=c("county","year"))
+Y2022<-Y_2022
+Y2022$num_ev<- Y2022$preds
+Y2022<- as.data.frame(Y2022[,-c(13:14)])
+future_x<-rbind(future_x, Y2022)
+
+Y2023<-Y_2023
+Y2023$num_ev<- Y2023$preds
+Y2023<- as.data.frame(Y2023[,-c(13:14)])
+future_x<-rbind(future_x, Y2023)
+
+Y2024<-Y_2024
+Y2024$num_ev<- Y2024$preds
+Y2024<- as.data.frame(Y2024[,-c(13:14)])
+future_x<-rbind(future_x, Y2024)
+
+Y2025<-Y_2025
+Y2025$num_ev<- Y2025$preds
+Y2025<- as.data.frame(Y2025[,-c(13:14)])
+future_x<-rbind(future_x, Y2025)
+
+Y2026<-Y_2026
+Y2026$num_ev<- Y2026$preds
+Y2026<- as.data.frame(Y2026[,-c(13:14)])
+future_x<-rbind(future_x, Y2026)
+
+Y2027<-Y_2027
+Y2027$num_ev<- Y2027$preds
+Y2027<- as.data.frame(Y2027[,-c(13:14)])
+future_x<-rbind(future_x, Y2027)
+
+Y2028<-Y_2028
+Y2028$num_ev<- Y2028$preds
+Y2028<- as.data.frame(Y2028[,-c(13:14)])
+future_x<-rbind(future_x, Y2028)
+
+Y2029<-Y_2029
+Y2029$num_ev<- Y2029$preds
+Y2029<- as.data.frame(Y2029[,-c(13:14)])
+future_x<-rbind(future_x, Y2029)
+
+Y2030<-Y_2030
+Y2030$num_ev<- Y2030$preds
+Y2030<- as.data.frame(Y2030[,-c(13:14)])
+future_x<-rbind(future_x, Y2030)
+
+Y2031<-Y_2031
+Y2031$num_ev<- Y2031$preds
+Y2031<- as.data.frame(Y2031[,-c(13:14)])
+future_x<-rbind(future_x, Y2031)
+
+Y2032<-Y_2032
+Y2032$num_ev<- Y2032$preds
+Y2032<- as.data.frame(Y2032[,-c(13:14)])
+future_x<-rbind(future_x, Y2032)
+
+Y2033<-Y_2033
+Y2033$num_ev<- Y2033$preds
+Y2033<- as.data.frame(Y2033[,-c(13:14)])
+future_x<-rbind(future_x, Y2033)
+
+Y2034<-Y_2034
+Y2034$num_ev<- Y2034$preds
+Y2034<- as.data.frame(Y2034[,-c(13:14)])
+future_x<-rbind(future_x, Y2034)
+
+Y2035<-Y_2035
+Y2035$num_ev<- Y2035$preds
+Y2035<- as.data.frame(Y2035[,-c(13:14)])
+future_x<-rbind(future_x, Y2035)
+
 future_x<-future_x%>% 
   group_by(county)%>%
   mutate(lag.value = cumsum(num_ev))
-#future_x<-subset(future_x, year > 2020)  
 
-#future_x$num_ev<-0
-
-future_x<- subset(future_x, year <=2021)
+write.csv(future_x, "predictions_CC_bycounty.csv")
+```
 
 
-future_x<-na.omit(future_x)
+```{r}
+future_x[is.na(future_x)]<-0
+
+#final= subset(future_x, year <=2020)
+#final= subset(future_x, year <=2021)
+#final= subset(future_x, year <=2022)
+#final= subset(future_x, year <=2023)
+#final= subset(future_x, year <=2024)
+#final= subset(future_x, year <=2025)
+#final= subset(future_x, year <=2026)
+#final= subset(future_x, year <=2027)
+#final= subset(future_x, year <=2028)
+#final= subset(future_x, year <=2029)
+#final= subset(future_x, year <=2030)
+#final= subset(future_x, year <=2031)
+#final= subset(future_x, year <=2032)
+#final= subset(future_x, year <=2033)
+final= subset(future_x, year <=2034)
+
+lm3 <- lm(num_ev ~., data= final)
 ```
 
 
@@ -295,24 +411,33 @@ future_x<-na.omit(future_x)
 
 prediction <- predict(lm3, future_x, se.fit = TRUE)
 
-pred.w.plim <- predict(lm3, future_x, interval = "prediction")
-
-pred.w.clim <- predict(lm3,future_x, interval = "confidence")
-
-#matplot(future_x$m_p_k, cbind(pred.w.clim, pred.w.plim[,-1]),
- #       lty = c(1,2,2,3,3), type = "l", ylab = "predicted y")
-
-# length(prediction$fit)
 
 preds_cc <- future_x
 
 preds_cc$preds<- prediction$fit
 
-Y_2021<-subset(preds_cc, year== '2021')  
-#Y_2021<-Y_2021$preds & Y_2021$county
+#Y_2021<-subset(preds_cc, year == '2021')  
+
+#Y_2022<-subset(preds_cc, year == '2022')  
+#Y_2023<-subset(preds_cc, year == '2023')
+#Y_2024<-subset(preds_cc, year == '2024')
+#Y_2025<-subset(preds_cc, year == '2025')
+
+#Y_2026<-subset(preds_cc, year == '2026')
+
+#Y_2027<-subset(preds_cc, year == '2027')
+#Y_2028<-subset(preds_cc, year == '2028')
+#Y_2029<-subset(preds_cc, year == '2029')
+#Y_2030<- subset(preds_cc, year == '2030')
+#Y_2031<-subset(preds_cc, year == '2031')
+#Y_2032<-subset(preds_cc, year == '2032')
+#Y_2033<-subset(preds_cc, year == '2033')
+#Y_2034<-subset(preds_cc, year == '2034')
+Y_2035<-subset(preds_cc, year == '2035')
+```
 
 
-
+```{r}
 ggplot(preds_cc, aes(x=year,y=preds))+ geom_point()
 
 final_preds<- preds_cc%>% group_by(year) %>% summarise(CA_total_ev = sum(preds), Original=sum(num_ev))
@@ -322,84 +447,197 @@ final_preds<- preds_cc%>% group_by(year) %>% summarise(CA_total_ev = sum(preds),
 ```
 
 
-preds <- as.data.frame(matrix(0,nrow=15, ncol =2))
 
-names(preds) <- c("Year", "projections")
+##Please note this code is not in a forloop and currently needs to be manually run
+```{r}
 
-# preds[1,1]
+#CA total
+new_Y<-Y[,-4]
+#new_Y <- pivot_wider(new_Y, names_from =year, values_from=num_ev)
+#new_Y$'2021'<-0
+#new_Y$'2022'<-0
+#new_Y$'2023'<-0
+#new_Y$'2024'<-0
+#new_Y$'2025'<-0
+#new_Y$'2026'<-0
+#new_Y$'2027'<-0
+#new_Y$'2028'<-0
+#new_Y$'2029'<-0
+#new_Y$'2030'<-0
+#new_Y$'2031'<-0
+#new_Y$'2032'<-0
+#new_Y$'2033'<-0
+#new_Y$'2034'<-0
+#new_Y$'2035'<-0
+
+#new_Y <- pivot_longer(new_Y, cols = 2:13, names_to = "year", values_to= "num_ev")
+new_Y$year<-as.numeric(new_Y$year)
+future_x <- merge(new_Y, gas_price, by = "year")
+future_x <- merge(future_x, vehicle_price, by = "year")
+future_x <- merge(future_x, mpk, by = "year")
+future_x <-merge(future_x, kw_prices, by= "year")
+future_x <- merge(future_x, long_pop, by = c("county", "year")) 
+future_x<- left_join(future_x, income.long, by= c("county", "year"))
+future_x <-left_join(future_x, char[,c("county","year","chargers")], by = c("county", "year"))
+
+future_x[is.na(future_x)]<-0
+future_x$avg_car_price<-(future_x$high + future_x$low+ future_x$mid)/3
+future_x<- future_x%>% group_by(year)%>% 
+  summarise(num_ev= sum(num_ev), gas_price = mean(gas_price), m_p_k= mean(m_p_k), dollar.per.kw = mean(dollar.per.kw), population=sum(population), avg_income = mean(avg_income),  chargers= sum(chargers), avg_car_price = mean(avg_car_price))
+
+
+Y2021<-Y_2021
+Y2021$num_ev<- Y_2021$preds
+Y2021<- as.data.frame(Y2021[ , -c(10:11)])
+future_x<-rbind(future_x, Y2021)
 
 
 
-j=1
-for (i in 2021:2035){
-  preds[j,1] <- i
-  j=j+1
+Y2022<-Y_2022
+Y2022$num_ev<- Y2022$preds
+Y2022<- as.data.frame(Y2022[,-c(10:11)])
+future_x<-rbind(future_x, Y2022)
+
+
+Y2023<-Y_2023
+Y2023$num_ev<- Y2023$preds
+Y2023<- as.data.frame(Y2023[,-c(10:11)])
+future_x<-rbind(future_x, Y2023)
+
+
+
+
+Y2024<-Y_2024
+Y2024$num_ev<- Y2024$preds
+Y2024<- as.data.frame(Y2024[,-c(10:11)])
+future_x<-rbind(future_x, Y2024)
+
+Y2025<-Y_2025
+Y2025$num_ev<- Y2025$preds
+Y2025<- as.data.frame(Y2025[,-c(10:11)])
+future_x<-rbind(future_x, Y2025)
+
+
+Y2026<-Y_2026
+Y2026$num_ev<- Y2026$preds
+Y2026<- as.data.frame(Y2026[,-c(10:11)])
+future_x<-rbind(future_x, Y2026)
+
+
+Y2027<-Y_2027
+Y2027$num_ev<- Y2027$preds
+Y2027<- as.data.frame(Y2027[,-c(10:11)])
+future_x<-rbind(future_x, Y2027)
+
+
+Y2028<-Y_2028
+Y2028$num_ev<- Y2028$preds
+Y2028<- as.data.frame(Y2028[,-c(10:11)])
+future_x<-rbind(future_x, Y2028)
+
+Y2029<-Y_2029
+Y2029$num_ev<- Y2029$preds
+Y2029<- as.data.frame(Y2029[,-c(10:11)])
+future_x<-rbind(future_x, Y2029)
+
+Y2030<-Y_2030
+Y2030$num_ev<- Y2030$preds
+Y2030<- as.data.frame(Y2030[,-c(10:11)])
+future_x<-rbind(future_x, Y2030)
+
+
+
+Y2031<-Y_2031
+Y2031$num_ev<- Y2031$preds
+Y2031<- as.data.frame(Y2031[,-c(10:11)])
+future_x<-rbind(future_x, Y2031)
+
+
+Y2032<-Y_2032
+Y2032$num_ev<- Y2032$preds
+Y2032<- as.data.frame(Y2032[,-c(10:11)])
+future_x<-rbind(future_x, Y2032)
+
+Y2033<-Y_2033
+Y2033$num_ev<- Y2033$preds
+Y2033<- as.data.frame(Y2033[,-c(10:11)])
+future_x<-rbind(future_x, Y2033)
+
+Y2034<-Y_2034
+Y2034$num_ev<- Y2034$preds
+Y2034<- as.data.frame(Y2034[,-c(10:11)])
+future_x<-rbind(future_x, Y2034)
+
+Y2035<-Y_2035
+Y2035$num_ev<- Y2035$preds
+Y2035<- as.data.frame(Y2035[,-c(10:11)])
+future_x<-rbind(future_x, Y2035)
+```
+
+```{r}
+j=as.numeric(future_x[1,2])
+future_x$lag.value<-0
+
+for (i in 1:nrow(future_x)){
+  future_x[i,10] <- j
+  k<-as.numeric(future_x[i,10])
+  j=j+k
 }
 
-preds$`projections` <- prediction$fit
 
 
-##650 down from 800 
+
+#write.csv(future_x, "predictions_CC.csv")
+
+future_x[is.na(future_x)]<-0
+
+#final= subset(future_x, year <=2020)
+#final= subset(future_x, year <=2021)
+#final= subset(future_x, year <=2022)
+#final= subset(future_x, year <=2023)
+#final= subset(future_x, year <=2024)
+#final= subset(future_x, year <=2025)
+#final= subset(future_x, year <=2026)
+#final= subset(future_x, year <=2027)
+#final= subset(future_x, year <=2028)
+#final= subset(future_x, year <=2029)
+#final= subset(future_x, year <=2030)
+#final= subset(future_x, year <=2031)
+#final= subset(future_x, year <=2032)
+#final= subset(future_x, year <=2033)
+final= subset(future_x, year <=2034)
+
+lm3 <- lm(num_ev ~., data= final)
 ```
 
-# use caret
+
+## predict for future
+
 ```{r}
-library(caret)
-preproc <- preProcess(model_data[,c(2:6)], method = c("center", "scale"))
-scaled.new <- predict(preproc, newdata = X_pred)
 
-model <- train(num_ev ~ .,
-               data = model_data,
-               method = "lm",
-               preProcess = c('scale', 'center'))
-model$modelInfo
-predictions <- predict(model, X_pred)
+prediction <- predict(lm3, future_x, se.fit = TRUE)
+
+
+preds_cc <- future_x
+
+preds_cc$preds<- prediction$fit
+
+#Y_2021<-subset(preds_cc, year == '2021')  
+#Y_2022<-subset(preds_cc, year == '2022')  
+#Y_2023<-subset(preds_cc, year == '2023')
+#Y_2024<-subset(preds_cc, year == '2024')
+#Y_2025<-subset(preds_cc, year == '2025')
+#Y_2026<-subset(preds_cc, year == '2026')
+#Y_2027<-subset(preds_cc, year == '2027')
+#Y_2028<-subset(preds_cc, year == '2028')
+#Y_2029<-subset(preds_cc, year == '2029')
+#Y_2030<- subset(preds_cc, year == '2030')
+#Y_2031<-subset(preds_cc, year == '2031')
+#Y_2032<-subset(preds_cc, year == '2032')
+#Y_2033<-subset(preds_cc, year == '2033')
+#Y_2034<-subset(preds_cc, year == '2034')
+Y_2035<-subset(preds_cc, year == '2035')
 ```
 
-```{r}
-prediction <- predict(lm2, scaled.new)
-
-summary(prediction)
-```
-
-```{r}
-
-write.csv(preds, "Prediction_california.csv")
-```
-
-## predictions with model
-
-### get the X's for future
 
 
-#gas X
-gas_price_X <- gas_price[gas_price$year>2020,]
-
-#m_p_k X
-mpk_X <- mpk[mpk$year > 2020,]
-
-#vehicle_price X
-vehicle_price_X <- vehicle_price[vehicle_price$year > 2020,]
-
-#chargers
-c_X <- charger_X %>% 
-  group_by(year_list) %>%
-  summarise(csum = sum(forecast_charger))
-names(c_X)[1] <- "year"
-
-#population
-#x_pop <- long_pop[long_pop$year>2020 & long_pop$county == "alameda",] 
-x_pop <- long_pop[long_pop$year>2020,]
-x_pop<-x_pop%>% group_by(year)%>%
-  summarise(population = sum(population, na.rm = TRUE)
-            )
-#cbind Xs
-X_pred <- cbind(gas_price_X[,c("gas_price")],
-               m_p_k =mpk_X[,c("m_p_k")], vehicle_price_X[,c("low","medium", "high")],
-                c_X[,c("csum")], population = x_pop[,c("population")])
-
-#combining prices for all category
-
-#X_pred$avg_vehicle_price <- (X_pred$low + X_pred$medium + X_pred$high)/3
-
-X_pred <- select(X_pred, -c( "low", "medium", "high"))

@@ -37,6 +37,8 @@ dmv$Data.Year<- as.numeric(dmv$Data.Year)
 Comparision selection
 ```{r}
 
+
+
 drops <- c("TESLA", "CHEVROLET") 
 
 other2 <- subset(dmv, !(MAKE %in% drops))
@@ -112,6 +114,13 @@ summary(lm1)
 ```
 
 ```{r}
+
+per<- cbind(tesla$Total, gm$Total, other$Total, tesla$Data.Year)
+
+
+( sum(tesla$Total)+sum(gm$Total))/(sum(other$Total)+ sum(tesla$Total)+sum(gm$Total))
+
+
 
 tesla <- subset(dmv, MAKE =="TESLA")
 
@@ -295,6 +304,7 @@ didreg3 =lm(y~ treated +time+did, data=df3)
 summary(didreg3)
 
 9089/15136
+
 
 ```
 

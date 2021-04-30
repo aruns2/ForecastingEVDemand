@@ -1,0 +1,401 @@
+---
+title: "forecasting_regression"
+author: "Arun Sharma"
+date: "4/17/2021"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+
+rm(list = ls())
+```
+
+
+#importing data
+```{r}
+#
+
+#vehicles sold
+# vehicles <- read.csv("dmv_data.csv")
+# vehicles <-  vehicles[vehicles$Fuel.Type == "Electric",]
+# 
+# vehicles_sold <- vehicles %>% 
+#   group_by(Data.Year, County) %>% 
+#   summarise(sale = mean(Number.of.Vehicles))
+
+# sales <- vehicles_sold[vehicles_sold$Data.Year >=2010,]
+#Population
+pop <- read.csv("population.csv")
+
+#select only relevant rows
+pop <- pop[1:59,1:27]
+
+#remove county from names
+pop$Region <- gsub(" County", "", pop$Region)
+
+#remove x from cols
+names(pop) <- gsub("X","", names(pop))
+
+#Income
+income <- read.csv("forecastedIncome.csv")
+income <- select(income, -X)
+county_names <- names(income)
+county_names <-county_names[-length(county_names)]
+county_names <- tolower(county_names)
+county_names <- gsub("[^a-zA-Z]", "", county_names)
+
+```
+
+```{r}
+#Charging Station
+chargers <- read.csv("county_chargers.csv")
+
+#Fuel Price
+fuel_price <- read.csv("CA_GasPreds_1995_2035.csv")
+names(fuel_price) <- c("Date", "GasPrice_gal")
+fuel_price$Date <- as.Date(fuel_price$Date, format = "%m/%d/%Y")
+fuel_price$year <- year(fuel_price$Date)
+f <- fuel_price %>% 
+  group_by(year) %>% 
+  summarise(avg_price = mean(GasPrice_gal))
+
+#charging
+chargers1 <- read.csv("county_datapoints.csv")
+
+gas_price <- f[f$year>2010,]
+names(gas_price)[2] <- "gas_price"
+
+#usd/kwh
+
+#Vehicle price
+vehicle_price <- read.csv("cec_price_range.csv")
+names(vehicle_price)[1] <- "year"
+
+#Miles per kwh
+mpk <- read.csv("forecastedMPKwh.csv")
+mpk <- select(mpk, -X)
+names(mpk)[1] <- "year"
+## Y
+Y <- read.csv("numEV_CountyandYear.csv")
+Y <- select(Y, -X)
+yearly_sales <- Y %>% 
+  group_by(year) %>% 
+  summarise(total_sales = sum(num_ev, na.rm = TRUE))
+##population
+library(reshape2)
+
+long_pop <- melt(pop, id.vars = c("Region"))
+
+names(long_pop)[2] <- "year"
+names(long_pop)[3] <- "population"
+names(long_pop)[1] <- "county"
+long_pop$year <- as.numeric(as.character(long_pop$year))
+
+final <- merge(Y, gas_price, by = "year")
+final <- merge(final, vehicle_price, by = "year")
+final <- merge(final, mpk, by = "year")
+
+final <- merge(final, long_pop, by = c("county", "year")) 
+final <- merge(final, chargers1[,c("county","year","csum")], by = c("county", "year"))
+final$avg_income <- (final$low+final$medium+final$high)/3
+model_data <- select(final, -c("year", "county", "low", "medium", "high"))
+
+lm1 <- lm(num_ev~., data=model_data)
+summary(lm1)
+
+gas_price_X <- gas_price[gas_price$year>2020,]
+mpk_X <- mpk[mpk$year > 2020,]
+vehicle_price_X <- vehicle_price[vehicle_price$year > 2020,]
+
+
+#chargers forecast
+char_for <- read.csv("charger_forecast.csv")
+charger_X <-  char_for[char_for$year_list>2020,]
+
+c_X <- charger_X %>% 
+  group_by(year_list) %>%
+  summarise(csum = sum(as.matrix.chargers_forecast.))
+names(c_X)[1] <- "year"
+x_pop <- long_pop[long_pop$year>2020&long_pop$county == "California",]  
+X_pred <- cbind(gas_price_X[,c("gas_price")],
+                m_p_k =mpk_X[,c("m_p_k")], vehicle_price_X[,c("low","medium", "high")],
+                c_X[,c("csum")], population = x_pop[,c("population")])
+X_pred$avg_income <- (X_pred$low + X_pred$medium + X_pred$high)/3
+
+X_pred <- select(X_pred, -c( "low", "medium", "high"))
+
+unique(final$county)
+prediction <- predict(lm1, X_pred, se.fit = TRUE)
+pred.w.plim <- predict(lm1, X_pred, interval = "prediction")
+pred.w.clim <- predict(lm1, X_pred, interval = "confidence")
+matplot(X_pred$m_p_k, cbind(pred.w.clim, pred.w.plim[,-1]),
+        lty = c(1,2,2,3,3), type = "l", ylab = "predicted y")
+
+length(prediction$fit)
+preds <- as.data.frame(matrix(0,nrow=15, ncol =2))
+names(preds) <- c("Year", "California Predictions")
+preds[1,1]
+j=1
+for (i in 2021:2035){
+  preds[j,1] <- i
+  j=j+1
+}
+preds$`California Predictions` <- prediction$fit
+
+write.csv(preds, "Prediction_california.csv")
+```
+```{r}
+sub_income <- select(income, -c("X","Year", "US","California"))
+data_income <- names(sub_income)
+complete_counties <- unique(long_pop$county)
+complete_counties <- data.frame(complete_counties)
+data_income <- data.frame(data_income)
+
+complete_counties[!(complete_counties$complete_counties %in% data_income$data_income),]
+
+
+```
+
+```{r}
+names(sales)[1] <- "year"
+pop
+
+library(reshape2)
+long_pop <- melt(pop, id.vars = c("Region"))
+names(long_pop)[2] <- "year"
+names(long_pop)[3] <- "population"
+names(long_pop)[1] <- "County"
+names(vehicle_price)[1] <-"year"
+df <- data.frame(matrix(0, nrow = 25, ncol =1))
+names(df)[1] <- "year"
+counties <- unique(sales$County)
+j=1
+for (i in 2010:2035){
+  df[j,] <-i
+  j=j+1
+}
+```
+
+```{r}
+merge(sales, long_pop, by= c("County", "year") )
+
+```
+
+```{r}
+library(plotly)
+
+ggplot(data = chargers1[chargers1$county == "City and County of San Francisco",],
+       aes(x = year, y = total_chargers))+geom_line()
+
+ggplot(data = chargers1[chargers1$county == "Alameda",],
+       aes(x = year, y = total_chargers))+geom_line()
+
+ggplot(data = chargers1[chargers1$county == "Contra Costa",],
+       aes(x = year, y = total_chargers))+geom_line()
+
+```
+
+```{r}
+chargers$date <- as.Date(chargers$Open_Date, format = "%m/%d/%Y")
+chargers$year <- year(chargers$date)
+chargers[is.na(chargers$EV.Level1.EVSE.Num),]$EV.Level1.EVSE.Num <- 0
+chargers[is.na(chargers$EV.Level2.EVSE.Num),]$EV.Level2.EVSE.Num <- 0
+chargers[is.na(chargers$EV.DC.Fast.Count),]$EV.DC.Fast.Count <- 0
+
+chargers$total <- chargers$EV.Level1.EVSE.Num + chargers$EV.Level2.EVSE.Num + chargers$EV.DC.Fast.Count
+
+c1 <- chargers %>% 
+  group_by(county, year) %>% 
+  summarise(total_chargers = sum(total))
+# c1 <- c1[c1$year >= 2010,]
+c2 <- c1 %>% group_by(county) %>% mutate(csum = cumsum(total_chargers), count = n()) %>% 
+  arrange(desc(count))
+# c2 %>% group_by(county) %>% summarise(n())
+c2 <- c2[c2$year >=2010,]
+library(lmerTest)
+counties_list <- unique(c2$county)
+for(i in 1:length(unique(c2$county))){
+  sub_data <- c2[c2$county == counties_list[i],]
+  sub_data <- sub_data[total_chargers,]
+}
+
+# write.csv(c2, "county_datapoints.csv")
+
+ts <- seq.POSIXt(as.POSIXct("2010",'%Y'), as.POSIXct("2020",'%Y'), by="year")
+ts <- seq.POSIXt(as.POSIXct("2001-09-01 0:00",'%m/%d/%y %H:%M'), as.POSIXct("2001-09-01 0:07",'%m/%d/%y %H:%M'), by="min")
+
+
+year(seq(c(ISOdate(2010,1,1)), by = "year", length.out = 11))
+```
+
+
+##Chargers 
+```{r}
+chargers1 <- read.csv("county_datapoints.csv")
+chargers1
+na_chargers <-  chargers1[is.na(chargers1$year),]
+na_chargers <- na_chargers[,c("county", "total_chargers")]
+chargers1<- chargers1[!is.na(chargers1$county),]
+chargers1$county <- as.character(chargers1$county)
+county_data <- chargers1 %>% 
+  group_by(county) %>% 
+  summarise(count_nona = n()-1, latest_year = max(year, na.rm = TRUE), lowest_year = min(year, na.rm = TRUE)) %>% 
+  mutate(year_from_20 = 2020 -latest_year) %>% 
+  filter(count_nona > 3)
+
+#figure out number of datapoints in future
+
+list_counties_proj <- unique(county_data$county)
+```
+```{r}
+if (list_counties_proj[i] %in% na_chargers$county ){
+  print("true")
+}
+```
+
+```{r}
+#install.packages('astsa')
+library(astsa)
+```
+
+```{r}
+
+
+#for (i in 1:length(list_counties_proj)){
+ # data_for <- chargers1[chargers1$county == list_counties_proj[i],]
+  # data_for <- chargers1[chargers1$county == "Alameda",]
+  
+  #adjust for na chargers
+  # if (list_counties_proj[i] %in% na_chargers$county ){
+  # l <- data_for[(length
+   #               (data_for)-2):length
+    #             (data_for)]
+  # list_counties_proj[i]
+  # missing_charger = na_chargers[na_chargers$county ==list_counties_proj[i], ]$total_chargers
+  # value1 <- missing_charger*.30
+   #value2 <- missing_charger*.50
+   #value3 <- missing_charger*.20
+   #l <- l +c(value1,value2,value3)
+   #data_for[(length
+    #         (data_for)-2):length
+     #       (data_for)] <- l 
+   #}
+  #forecast
+  
+  start_year <- county_data[county_data$county == list_counties_proj[i],]$lowest_year
+  # start_year <- county_data[county_data$county == "Alameda",]$lowest_year
+  #data_for <- data_for[,c("csum")]
+  
+#changed object from data_for to chargers1 
+char1<-na.omit(chargers1)
+csum<-char1[, -which(names(char1) %in% c("X", "total_chargers", "county"))]
+
+ts.chargers <- as.ts(csum, start = start_year, frequency =1)
+  n.for <- 2035 - (start_year + length(ts.chargers)-2)
+  model <- sarima.for(ts.chargers, n.ahead = n.for, 0,1,2 )
+  # 1,1,2
+  chargers_forecast <- model$pred
+  
+  #get the year to start proj
+  final_year <- start_year + length(ts.chargers)-1
+  
+  #get the list
+  year_list <- c()
+  for(j in final_year:2035 ){
+    year_list = c(year_list, j)
+  }
+  c1 <- data.frame(chargers_forecast)
+  c2 <- data.frame(year_list)
+  # df <- cbind(c1,c2)
+  df <- data.frame(as.matrix(chargers_forecast), date=c2)
+  # res$year <-  trunc(res$date)
+  df$county <- list_counties_proj[i]
+  # print(i)
+  if(i == 1){
+    temp1 <- df
+    print(i)
+    print(is.data.frame(temp1))
+  } 
+  if (i>1){
+    is.data.frame(df)
+    # temp1 <- rbind(temp1, df, stringsAsFactors = FALSE)
+    temp1 <- do.call(rbind, list(temp1,df))
+  }
+}
+
+final_charger_forecast <- temp1
+
+charger_X <-  final_charger_forecast[final_charger_forecast$year_list>2020,]
+
+write.csv(final_charger_forecast, "charger_forecast.csv")
+
+write.csv(final_charger_forecast, "charger_all.csv")
+
+# unique(final_charger_forecast$county)
+
+
+```
+
+```{r}
+install.packages('marima')
+
+library(marima)
+```
+
+```{r}
+
+
+fit<- marima(ts.chargers)
+
+nstart<-10
+nstep <-1
+Forecasts <- arma.forecast(series=ts.chargers, marima=Marima5, 
+               nstart=nstart, nstep=nstep )
+
+
+
+```
+
+
+```{r}
+
+fcast <- forecast(fit)
+plot(fcast)
+
+
+```
+
+
+```{r}
+
+plot(predict(deseasonal_sp))
+
+
+prediction2 <- predict(fit[["x"]])
+
+plot(prediction2)
+
+```
+
+```{r}
+
+futureVal <-predict(fit, n.ahead = 15)
+
+#futurVal <- forecast(fit, level=c(95))
+
+#plot(futureVal)
+
+gas_df<- as.data.frame(futureVal$pred)
+
+#add in data back to 1995
+write.csv(gas_df, "CA_GasPreds_2035.csv")
+```
+
+```{r}
+
+
+
+```
+
