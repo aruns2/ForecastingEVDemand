@@ -483,7 +483,7 @@ future_x <-left_join(future_x, char[,c("county","year","chargers")], by = c("cou
 future_x[is.na(future_x)]<-0
 future_x$avg_car_price<-(future_x$high + future_x$low+ future_x$mid)/3
 future_x<- future_x%>% group_by(year)%>% 
-  summarise(num_ev= sum(num_ev), gas_price = mean(gas_price), m_p_k= mean(m_p_k), dollar.per.kw = mean(dollar.per.kw), population=sum(population), avg_income = mean(avg_income),  chargers= sum(chargers), avg_car_price = mean(avg_car_price))
+  summarise(num_ev= sum(num_ev, na.rm = TRUE), gas_price = mean(gas_price), m_p_k= mean(m_p_k), dollar.per.kw = mean(dollar.per.kw), population=sum(population), avg_income = mean(avg_income),  chargers= sum(chargers), avg_car_price = mean(avg_car_price))
 
 
 Y2021<-Y_2021
@@ -572,8 +572,9 @@ Y2035<-Y_2035
 Y2035$num_ev<- Y2035$preds
 Y2035<- as.data.frame(Y2035[,-c(10:11)])
 future_x<-rbind(future_x, Y2035)
-```
 
+write.csv(future_x, "CA_Preds_CC.csv")
+```
 ```{r}
 j=as.numeric(future_x[1,2])
 future_x$lag.value<-0
@@ -599,13 +600,13 @@ future_x[is.na(future_x)]<-0
 #final= subset(future_x, year <=2025)
 #final= subset(future_x, year <=2026)
 #final= subset(future_x, year <=2027)
-#final= subset(future_x, year <=2028)
+final= subset(future_x, year <=2028)
 #final= subset(future_x, year <=2029)
 #final= subset(future_x, year <=2030)
 #final= subset(future_x, year <=2031)
 #final= subset(future_x, year <=2032)
 #final= subset(future_x, year <=2033)
-final= subset(future_x, year <=2034)
+#final= subset(future_x, year <=2034)
 
 lm3 <- lm(num_ev ~., data= final)
 ```
@@ -630,13 +631,13 @@ preds_cc$preds<- prediction$fit
 #Y_2026<-subset(preds_cc, year == '2026')
 #Y_2027<-subset(preds_cc, year == '2027')
 #Y_2028<-subset(preds_cc, year == '2028')
-#Y_2029<-subset(preds_cc, year == '2029')
+Y_2029<-subset(preds_cc, year == '2029')
 #Y_2030<- subset(preds_cc, year == '2030')
 #Y_2031<-subset(preds_cc, year == '2031')
 #Y_2032<-subset(preds_cc, year == '2032')
 #Y_2033<-subset(preds_cc, year == '2033')
 #Y_2034<-subset(preds_cc, year == '2034')
-Y_2035<-subset(preds_cc, year == '2035')
+#Y_2035<-subset(preds_cc, year == '2035')
 ```
 
 
