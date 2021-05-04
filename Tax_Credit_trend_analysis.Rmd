@@ -51,7 +51,6 @@ lm_dmv<-lm(Number.of.Vehicles ~ Data.Year + MAKE, dmv)
 summary(lm_dmv)
 
 
-
 ggplot(subset(dmv, MAKE=="BMW"), aes(x=Data.Year,y=Number.of.Vehicles, fill=MAKE))+
   stat_summary(fun.data = mean_cl_normal)+
   geom_smooth(method='lm', formula=y~x)
@@ -63,9 +62,12 @@ ggplot(subset(dmv, MAKE=="Audi"), aes(x=Data.Year,y=Number.of.Vehicles, fill=MAK
 
 ggplot(subset(dmv, MAKE=="CHEVROLET"), aes(x=Data.Year,y=Number.of.Vehicles, fill=MAKE))+
   stat_summary(fun.data = mean_cl_normal)+
-  geom_smooth(method='lm', formula=y~x)+
-  geom_point()
+  geom_smooth(method='lm', formula=y~x)
 
+
+ggplot(subset(dmv, MAKE=="Toyota"), aes(x=Data.Year,y=Number.of.Vehicles, fill=MAKE))+
+  stat_summary(fun.data = mean_cl_normal)+
+  geom_smooth(method='lm', formula=y~x)
 
 
 
@@ -89,11 +91,14 @@ vehicle2 <- vehicle1 %>%
 ggplot(data = vehicle2, aes(x = Data.Year, y = total_veh, color = is.tesl_or_chev ))+
   geom_line() + ggtitle("Trends for both categories of vehicles", subtitle = "Both chev and tesla included")
 
-#remove tesla
+#remove tesla 
 vehicle1 <- vehicle
 vehicle1 <- vehicle1[!(vehicle1$MAKE %in% "TESLA"),]
-vehicle1$is.chev <- "Others"
+vehicle1<- subset(vehicle1, MAKE== "CHEVROLET" | MAKE== "Toyota")
+vehicle1$is.chev <- "Toyota"
 vehicle1[vehicle1$MAKE %in% c("CHEVROLET"),]$is.chev <- "Chev"
+
+
 
 vehicle2 <- vehicle1 %>% 
   group_by(Data.Year, is.chev) %>% 
@@ -115,10 +120,26 @@ summary(lm1)
 
 ```{r}
 
-per<- cbind(tesla$Total, gm$Total, other$Total, tesla$Data.Year)
+vehicle2 <- vehicle1 %>% 
+  group_by(Data.Year, is.chev) %>% 
+  summarise(total_veh = sum(total_veh))
+ggplot(data = vehicle2, aes(x = Data.Year, y = total_veh, color = is.chev ))+
+  geom_line() + ggtitle("Trends for both categories of vehicles", subtitle = "Only Chevrolet")
 
+#assign post treatment world
+vehicle2$after.treat <- 0
+vehicle2[vehicle2$Data.Year > 2018,]$after.treat <- 1
 
-( sum(tesla$Total)+sum(gm$Total))/(sum(other$Total)+ sum(tesla$Total)+sum(gm$Total))
+vehicle2$is.treat <- 0
+vehicle2[vehicle2$is.chev == "Chev",]$is.treat = 1
+
+lm1 <- lm(total_veh~is.treat*after.treat, data = vehicle2)
+summary(lm1)
+
+```
+
+```{r}
+
 
 
 
@@ -135,6 +156,12 @@ toyota_control <-subset(dmv, MAKE=="Toyota")
 drops <- c("TESLA", "CHEVROLET") 
 
 other <- subset(dmv, !(MAKE %in% drops))
+
+per<- cbind(tesla$Total, gm$Total, other$Total,tesla$Data.Year)
+
+
+( sum(tesla$Total)+sum(gm$Total))/(sum(other$Total)+ sum(tesla$Total)+sum(gm$Total))
+
 
 test <- dmv%>%
   group_by(Data.Year, MAKE)%>%
