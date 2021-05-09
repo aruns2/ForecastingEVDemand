@@ -270,29 +270,38 @@ library(vars)
 library(mFilter)
 library(tseries)
 library(forecast)
+income <- read.csv("forecastedIncome.csv")
 
 var_data <- final2 %>% 
   group_by(year) %>% 
   summarise(num_ev = sum(num_ev), gas_price = mean(gas_price), low = mean(low),
             medium = mean(medium), high = mean(high), m_p_k = mean(m_p_k), 
             population = sum(population), csum =sum(csum))
+var_data$avg_price <- (var_data$low +var_data$medium +var_data$high)/3
 
 chargers_ts <- ts(var_data$csum, start = 2011, frequency = 1)
 vehicle_ts <- ts(var_data$num_ev, start = 2011, frequency = 1)
+gas_ts <- ts(var_data$gas_price, start =2011, frequency =1)
+pop_ts <- ts(var_data$population, start =2011, frequency =1)
+mpk_ts <- ts(var_data$m_p_k, start =2011, frequency =1)
+avg_price_ts <- ts(var_data$avg_price, start =2011, frequency =1)
 
-autoplot(cbind(chargers_ts, vehicle_ts))
+
+autoplot(cbind(chargers_ts, vehicle_ts, gas_ts))
 acf(chargers_ts)
 pacf(chargers_ts)
+```
 
+```{r}
 #finding optimal lags
-bind_data <- cbind(chargers_ts,vehicle_ts)
-colnames(bind_data) <- cbind("Chargers", "Vehicles")
+bind_data <- cbind(chargers_ts,vehicle_ts, gas_ts, pop_ts, mpk_ts, avg_price_ts)
+colnames(bind_data) <- cbind("Chargers", "Vehicles", "GasPrices", "Population", "MPK", "AvgPrice")
 
 lagSelect <- VARselect(bind_data, lag.max = 8, type = "trend")
 lagSelect$selection
 
 model1 <- VAR(bind_data, p =1, type="trend", season = NULL, exogen = NULL)
-summary(model1)
+# summary(model1)
 
 #diaganose
 #serial correaltion
@@ -345,7 +354,7 @@ for (i in 2021:2035){
 f1 <- forecast_num[,c("Vehicles.fcst", "year")]
 names(f1) <- c("num_ev","year")
 data_forecasted <- rbind(var_data[,c(1,2)], f1)
-write.csv(data_forecasted, "VAR predictions.csv")
+# write.csv(data_forecasted, "VAR predictions.csv")
 
 ggplot(data = data_forecasted, aes(x = year, y = num_ev))+geom_line()
 
